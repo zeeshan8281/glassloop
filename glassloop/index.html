@@ -349,7 +349,10 @@
 
 <script>
 if (window.gsap && window.MotionPathPlugin) gsap.registerPlugin(MotionPathPlugin);
-const esc = (s) => String(s ?? "").replace(/[&<>]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;" }[c]));
+// models sometimes emit HTML entities ("Tighten &amp; verify") — decode them
+// first so esc() doesn't double-escape into a visible "&amp;"
+const deent = (s) => s.replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#0?39;/g, "'");
+const esc = (s) => deent(String(s ?? "")).replace(/[&<>]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;" }[c]));
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const $ = (id) => document.getElementById(id);
 const usd = (n) => "$" + Number(n || 0).toFixed(4);
