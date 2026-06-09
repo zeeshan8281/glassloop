@@ -129,6 +129,9 @@ export type StopReason =
 
 const ORCH_MODEL = process.env.ORCH_MODEL ?? JUDGE_MODEL;
 const AGENTIC_MAX_STEPS = parseInt(process.env.AGENTIC_MAX_STEPS ?? "4", 10);
+// Demo-tunable floor: the orchestrator may not declare done before this many
+// steps — it must keep finding genuine improvements (review, verify, tighten…).
+const AGENTIC_MIN_STEPS = parseInt(process.env.AGENTIC_MIN_STEPS ?? "3", 10);
 
 export interface Frame {
   goal: string;
@@ -581,7 +584,7 @@ const PLAN_TOOL: ToolDef = {
 
 // the orchestrator: picks the next step (or stops). This is the decision-maker
 // in the body of the loop — the thing that makes it agentic, not a fixed pipeline.
-async function orchestrate(goal: string, artifact: string, history: AgenticStep[]): Promise<Plan & { usage: Usage }> {
+async function orchestrate(goal: string, artifact: string, history: AgenticStep[], mustContinue = false): Promise<Plan & { usage: Usage }> {
   const system =
     "You are the orchestrator of an autonomous closed-loop agent. YOU decide the plan — " +
     "the steps are not predefined. Work like a careful expert who does NOT ship the first draft. " +
@@ -595,7 +598,10 @@ async function orchestrate(goal: string, artifact: string, history: AgenticStep[
   const hist = history.length
     ? history.map((h, i) => `Step ${i + 1} (${h.name}): ${h.cleared ? "PASSED" : "FAILED"} @ ${h.best_score.toFixed(2)} — ${h.rounds[0]?.critique ?? ""}`).join("\n")
     : "(no steps yet)";
-  const user = `GOAL:\n${goal}\n\nCURRENT ARTIFACT:\n${artifact || "(nothing produced yet)"}\n\nSTEPS SO FAR:\n${hist}\n\nDecide the next step, or declare done.`;
+  const cont = mustContinue
+    ? "\n\nIMPORTANT: the minimum step count has NOT been reached — you may NOT set done=true. Choose the single most valuable next improvement step (critical review, fact-check, strengthen a weak section, restructure, tighten, final verification)."
+    : "";
+  const user = `GOAL:\n${goal}\n\nCURRENT ARTIFACT:\n${artifact || "(nothing produced yet)"}\n\nSTEPS SO FAR:\n${hist}${cont}\n\nDecide the next step, or declare done.`;
   const { args, usage } = await chatTool<Plan>(ORCH_MODEL, system, user, PLAN_TOOL, 1500);
   return { ...args, usage };
 }
@@ -627,9 +633,18 @@ export async function runAgentic(goal: string, hooks: AgenticHooks = {}): Promis
     if (acc.cost >= MAX_USD) { stop = "budget_exceeded"; break; }
 
     hooks.onPhase?.(i, "planning");
-    const plan = await orchestrate(goal, bestText, steps); // orchestrator judges the best draft so far
+    const mustContinue = steps.length < AGENTIC_MIN_STEPS && i < AGENTIC_MAX_STEPS - 1;
+    let plan = await orchestrate(goal, bestText, steps, mustContinue); // orchestrator judges the best draft so far
     acc.input += plan.usage.input; acc.output += plan.usage.output;
     acc.cost += costOf(PRICE.judge, plan.usage); // orchestrator runs the strong model
+    if (plan.done && mustContinue) {
+      // backstop: the floor says keep going — convert the early "done" into a real improvement pass
+      plan = {
+        ...plan, done: false, step_name: "Critical review & improve",
+        instruction: "Critically review the current artifact against the goal. Identify its single weakest aspect (accuracy, completeness, structure, clarity, or punch) and produce an improved version that fixes it. Keep everything that already works.",
+        success_criteria: "PASS if the revision genuinely improves the weakest aspect while preserving prior strengths. FAIL if it regressed or changed nothing meaningful.",
+      };
+    }
     hooks.onPlan?.(i, plan);
     log(`\n=== step ${i + 1}: ${plan.step_name} ${plan.done ? "(DONE)" : ""} ===\n  ${plan.thought}`);
     if (plan.done) { stop = "agent_done"; break; }
