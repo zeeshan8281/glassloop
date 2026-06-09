@@ -65,6 +65,8 @@
   .askbox textarea::placeholder { color: var(--muted); }
   .askhint { color: var(--muted); font-size: 12px; font-family: var(--mono); margin-top: 7px; }
   .askhint b { color: var(--indigo-2); }
+  .askrow { display: flex; align-items: center; gap: 14px; margin-top: 8px; }
+  .askrow .askhint { margin-top: 0; flex: 1; }
 
   .tabs { display: flex; gap: 6px; border-bottom: 1px solid var(--line); margin-bottom: 18px; }
   .tab { font: inherit; font-size: 14px; font-weight: 500; color: var(--muted); cursor: pointer; background: transparent; border: 0; border-bottom: 2px solid transparent; padding: 10px 14px; margin-bottom: -1px; display: flex; align-items: center; gap: 8px; transition: color .15s, border-color .15s; }
@@ -325,7 +327,10 @@
   <div class="askbox">
     <label>your goal · used by every mode below</label>
     <textarea id="goal-input" rows="2" placeholder="Ask the loop to produce anything — e.g. &quot;a sharp 6-line poem about trustless agents&quot;, &quot;a cold email pitching verifiable compute&quot;. Leave blank to run the default demo."></textarea>
-    <div class="askhint">type a goal, then pick <b>any</b> tab — Single, Fixed pipeline, or Agentic — and hit start. the same goal runs in whichever mode you choose · leave blank for the default demo</div>
+    <div class="askrow">
+      <div class="askhint">runs in whichever tab is selected below · <b>⌘↵</b> to run · blank = default demo</div>
+      <button class="cta" id="run-top" onclick="startRun(TAB)">▶ Run</button>
+    </div>
   </div>
 
   <div class="tabs">
@@ -581,7 +586,7 @@ function paintTranscript(p) {
 
 // ---- live follower ----
 async function follow(mode) {
-  const my = ++token;
+  const my = ++token; setRunTop(true);
   const isAgentic = mode === "agentic";
   const isPipe = mode === "stages"; // only the fixed pipeline uses the box-row
   const diagram = isAgentic ? agenticDiagramHTML()
@@ -635,14 +640,14 @@ async function follow(mode) {
       if (rmode === mode) return renderDone(mode, p.result, p.signature, p.signed);
       await sleep(700); continue; // mismatched stale result — wait for our run
     }
-    if (p.status === "error") { stopPacket(); $("transcript").innerHTML = `<div class="ts-empty"><span class="no" style="color:var(--bad)">enclave error: ${esc(p.error || "failed")}</span></div>`; return; }
+    if (p.status === "error") { stopPacket(); setRunTop(false); $("transcript").innerHTML = `<div class="ts-empty"><span class="no" style="color:var(--bad)">enclave error: ${esc(p.error || "failed")}</span></div>`; return; }
     await sleep(1000);
   }
 }
 
 // ---- idle / start ----
 function renderIdle(mode, busyMsg) {
-  ++token; stopPacket();
+  ++token; stopPacket(); setRunTop(false);
   const label = mode === "stages" ? "▶ Start the pipeline" : mode === "agentic" ? "▶ Start the agent" : "▶ Start the loop";
   const diagram = mode === "single" ? diagramHTML()
     : mode === "agentic" ? agenticDiagramHTML()
@@ -656,7 +661,12 @@ function renderIdle(mode, busyMsg) {
   $("start-btn").onclick = () => startRun(mode);
 }
 
+function setRunTop(running) {
+  const b = $("run-top"); if (b) { b.disabled = running; b.textContent = running ? "running…" : "▶ Run"; }
+}
+
 async function startRun(mode) {
+  setRunTop(true);
   const btn = $("start-btn"); if (btn) { btn.disabled = true; btn.textContent = "starting…"; }
   const goal = (($("goal-input") || {}).value || "").trim();
   try {
@@ -676,7 +686,7 @@ function roundHTML(r, open) {
   return `<details class="round" ${open ? "open" : ""}><summary><span class="rn">round ${r.n}</span>${r.passed ? '<span class="pill good">passed</span>' : '<span class="pill bad">rejected</span>'}<span class="rs">score ${Number(r.score).toFixed(2)}${cost}</span></summary><div class="body"><div class="lbl">Judge critique</div><div class="crit">${esc(r.critique)}</div><div class="lbl">Draft</div><div class="draft md">${mdRender(r.draft)}</div></div></details>`;
 }
 function renderDone(mode, result, signature, signed) {
-  ++token; stopPacket();
+  ++token; stopPacket(); setRunTop(false);
   LAST = { signed: signed || JSON.stringify(result), signature: signature || null, artifact: result.final_artifact || "" };
   mode === "single" ? renderSingleDone(result) : renderStagesDone(result);
   paintVerify(LAST.signed, signature); // verify the exact signed bytes
@@ -770,6 +780,7 @@ async function syncTab(mode) {
   renderIdle(mode, busy);
 }
 
+$("goal-input") && $("goal-input").addEventListener("keydown", (e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") startRun(TAB); });
 selectTab("single");
 </script>
 </body>
