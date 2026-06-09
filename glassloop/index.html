@@ -5,11 +5,21 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>GlassLoop — a closed agent loop you can verify</title>
 <meta name="description" content="A closed-loop agent in an EigenCompute TEE. Watch the worker draft and the judge critique, live — single loop or multi-stage pipeline. Every step attestable on-chain." />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%231a0c6d'/%3E%3Cpath d='M32 14a18 18 0 1 1-18 18' fill='none' stroke='%23818cf8' stroke-width='6' stroke-linecap='round'/%3E%3C/svg%3E" />
+<meta property="og:title" content="GlassLoop — a closed agent loop you can verify" />
+<meta property="og:description" content="An agent that drafts, grades itself, and revises — inside a TEE that signs every result. Verified in your browser." />
+<meta property="og:url" content="https://glassloop-chi.vercel.app" />
+<meta property="og:type" content="website" />
+<meta name="twitter:card" content="summary" />
+<meta name="twitter:title" content="GlassLoop — a closed agent loop you can verify" />
+<meta name="twitter:description" content="An agent that drafts, grades itself, and revises — inside a TEE that signs every result. Verified in your browser." />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300..700&family=Geist+Mono:wght@400..600&display=swap" rel="stylesheet" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/MotionPathPlugin.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.6/purify.min.js"></script>
 <style>
   :root {
     --bg: #0a0a0a; --card: #171717; --popover: #1f1f1f;
@@ -175,6 +185,45 @@
   .vbadge.ok  { color: var(--good); border-color: rgba(74,222,128,.4); background: rgba(74,222,128,.07); }
   .vbadge.bad { color: var(--bad); border-color: rgba(248,113,113,.45); background: rgba(248,113,113,.1); }
   .vbadge.mut { color: var(--muted); }
+  .vbadge.ok { cursor: pointer; }
+
+  /* proof panel — the verifiable receipt */
+  .proof { margin: 10px 0 4px; background: var(--card); border: 1px solid var(--line); border-radius: var(--r-el); padding: 14px 16px; }
+  .proof .prow { display: flex; gap: 10px; align-items: baseline; margin-bottom: 8px; font-size: 12.5px; }
+  .proof .prow > span { flex: 0 0 76px; color: var(--muted); font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: .5px; }
+  .proof .prow code { font-family: var(--mono); font-size: 11.5px; color: var(--indigo-2); word-break: break-all; }
+  .proof .pactions { display: flex; gap: 10px; margin: 12px 0 10px; flex-wrap: wrap; }
+  .proof .psnip { color: var(--muted); font-size: 11.5px; font-family: var(--mono); }
+  .proof .psnip pre { background: var(--bg); border: 1px solid var(--line); border-radius: var(--r-el); padding: 10px 12px; overflow-x: auto; color: #b9c2cf; margin: 6px 0 0; font-size: 11px; line-height: 1.5; }
+
+  /* rendered markdown (final artifact + trail drafts) */
+  .md { white-space: normal; }
+  .md > :first-child { margin-top: 0; } .md > :last-child { margin-bottom: 0; }
+  .md h1, .md h2, .md h3, .md h4 { font-family: var(--heading); letter-spacing: -.3px; margin: 18px 0 8px; line-height: 1.3; }
+  .md h1 { font-size: 20px; } .md h2 { font-size: 17px; } .md h3 { font-size: 15px; } .md h4 { font-size: 14px; }
+  .md p { margin: 0 0 12px; } .md ul, .md ol { margin: 0 0 12px; padding-left: 22px; }
+  .md li { margin-bottom: 5px; } .md li > p { margin-bottom: 4px; }
+  .md strong { color: var(--text); } .md em { color: var(--indigo-2); }
+  .md code { font-family: var(--mono); font-size: .9em; background: rgba(129,140,248,.08); border-radius: 4px; padding: 1px 5px; }
+  .md pre { background: var(--bg); border: 1px solid var(--line); border-radius: var(--r-el); padding: 12px 14px; overflow-x: auto; }
+  .md pre code { background: none; padding: 0; }
+  .md blockquote { border-left: 2px solid var(--indigo); margin: 0 0 12px; padding: 2px 0 2px 14px; color: var(--muted); }
+  .md hr { border: 0; border-top: 1px solid var(--line); margin: 16px 0; }
+  .md a { color: var(--indigo); }
+
+  /* mobile */
+  @media (max-width: 640px) {
+    .wrap { padding: 30px 14px 60px; }
+    .stats { grid-template-columns: 1fr; }
+    .stat .v { font-size: 19px; }
+    .tabs { overflow-x: auto; }
+    .tab { white-space: nowrap; padding: 10px 10px; }
+    .pipe { overflow-x: auto; }
+    .pstage { min-width: 104px; }
+    .chip + .chip { margin-left: 18px; }
+    .trust { padding: 16px; }
+    .start-row { flex-wrap: wrap; }
+  }
 
   /* "the ask" — the goal each stage was given */
   .ask { margin: 0 0 14px; border: 1px solid var(--line); border-radius: var(--r-el); background: var(--card); overflow: hidden; }
@@ -345,9 +394,45 @@ async function verifyResult(signedStr, sigB64) {
 async function paintVerify(signedStr, sig) {
   const el = document.getElementById("verify-badge"); if (!el) return;
   const ok = await verifyResult(signedStr, sig);
-  if (ok === true) el.innerHTML = `<span class="vbadge ok">✓ signature verified — this exact result was produced by the attested enclave</span>`;
+  if (ok === true) el.innerHTML = `<span class="vbadge ok" onclick="toggleProof()" title="click for the proof">✓ signature verified — this exact result was produced by the attested enclave · <u>proof</u></span>`;
   else if (ok === false) el.innerHTML = `<span class="vbadge bad">✗ signature invalid — this result may have been tampered with</span>`;
   else el.innerHTML = `<span class="vbadge mut">result is signed · open in a current browser to verify the signature</span>`;
+}
+
+// ---- the proof: pubkey + signature + verify-it-yourself + downloadable receipt ----
+let LAST = { signed: null, signature: null, artifact: "" };
+function toggleProof() {
+  const host = $("proof-host"); if (!host) return;
+  if (host.innerHTML) { host.innerHTML = ""; return; }
+  const snip = `node -e 'const{createPublicKey,verify}=require("crypto");const p=require("./glassloop-proof.json");const k=createPublicKey({key:Buffer.concat([Buffer.from("302a300506032b6570032100","hex"),Buffer.from(p.pubkey,"base64")]),format:"der",type:"spki"});console.log("verified:",verify(null,Buffer.from(p.signed),k,Buffer.from(p.signature,"base64")))'`;
+  host.innerHTML = `<div class="proof">
+    <div class="prow"><span>pubkey</span><code>${esc(PINNED_PUBKEY)}</code></div>
+    <div class="prow"><span>signature</span><code>${esc(LAST.signature || "")}</code></div>
+    <div class="pactions">
+      <button class="btn-out" onclick="downloadProof()">⬇ download signed receipt</button>
+      <a class="link-mut" href="https://verify-sepolia.eigencloud.xyz/app/0x93F0FF4EF5f52294f741fB4CB37D86928218cCb4" target="_blank" rel="noopener">enclave attestation ↗</a>
+    </div>
+    <div class="psnip">verify it yourself (Ed25519, no trust in this page needed):<pre>${esc(snip)}</pre></div>
+  </div>`;
+}
+function downloadProof() {
+  const blob = new Blob([JSON.stringify({ signed: LAST.signed, signature: LAST.signature, pubkey: PINNED_PUBKEY }, null, 2)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob); a.download = "glassloop-proof.json"; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+}
+function copyArtifact(btn) {
+  navigator.clipboard.writeText(LAST.artifact || "").then(() => {
+    const t = btn.textContent; btn.textContent = "copied ✓"; setTimeout(() => btn.textContent = t, 1500);
+  });
+}
+
+// render model output as sanitized markdown; fall back to escaped text
+function mdRender(text) {
+  if (window.marked && window.DOMPurify) {
+    try { return DOMPurify.sanitize(marked.parse(text ?? "", { breaks: true })); } catch (e) {}
+  }
+  return esc(text).replace(/\n/g, "<br>");
 }
 
 (function () {
@@ -588,17 +673,18 @@ async function startRun(mode) {
 // ---- done view ----
 function roundHTML(r, open) {
   const cost = r.cost_usd != null ? ` · ${usd(r.cost_usd)}` : "";
-  return `<details class="round" ${open ? "open" : ""}><summary><span class="rn">round ${r.n}</span>${r.passed ? '<span class="pill good">passed</span>' : '<span class="pill bad">rejected</span>'}<span class="rs">score ${Number(r.score).toFixed(2)}${cost}</span></summary><div class="body"><div class="lbl">Judge critique</div><div class="crit">${esc(r.critique)}</div><div class="lbl">Draft</div><div class="draft">${esc(r.draft)}</div></div></details>`;
+  return `<details class="round" ${open ? "open" : ""}><summary><span class="rn">round ${r.n}</span>${r.passed ? '<span class="pill good">passed</span>' : '<span class="pill bad">rejected</span>'}<span class="rs">score ${Number(r.score).toFixed(2)}${cost}</span></summary><div class="body"><div class="lbl">Judge critique</div><div class="crit">${esc(r.critique)}</div><div class="lbl">Draft</div><div class="draft md">${mdRender(r.draft)}</div></div></details>`;
 }
 function renderDone(mode, result, signature, signed) {
   ++token; stopPacket();
+  LAST = { signed: signed || JSON.stringify(result), signature: signature || null, artifact: result.final_artifact || "" };
   mode === "single" ? renderSingleDone(result) : renderStagesDone(result);
-  paintVerify(signed || JSON.stringify(result), signature); // verify the exact signed bytes
+  paintVerify(LAST.signed, signature); // verify the exact signed bytes
 }
 
 function renderSingleDone(d) {
   $("pane").innerHTML = explainHTML("single") +
-    `<div id="verify-badge" class="verify-wrap"><span class="vbadge mut">verifying signature…</span></div>` + `
+    `<div id="verify-badge" class="verify-wrap"><span class="vbadge mut">verifying signature…</span></div><div id="proof-host"></div>` + `
     <div class="stats">
       <div class="stat"><div class="k">Stopped because</div><div class="v">${stopBadge(d.stop_reason)}</div></div>
       <div class="stat"><div class="k">Best score</div><div class="v mono">${Number(d.best_score).toFixed(2)}</div></div>
@@ -606,8 +692,8 @@ function renderSingleDone(d) {
     </div>
     <div class="meta-line">${d.rounds_run} rounds · ${toks(d.tokens)} tokens · stops at gate / no-progress / $ ceiling</div>
     <div class="section-h"><h2>The frame · goal</h2></div><div class="goal">${esc(d.goal)}</div>
-    <div class="section-h"><h2>Final artifact · round ${d.best_round}</h2><button class="cta sm" id="again">Run again</button></div>
-    <div class="artifact">${esc(d.final_artifact)}</div>
+    <div class="section-h"><h2>Final artifact · round ${d.best_round}</h2><div style="display:flex;gap:8px"><button class="btn-out" onclick="copyArtifact(this)">copy</button><button class="cta sm" id="again">Run again</button></div></div>
+    <div class="artifact md">${mdRender(d.final_artifact)}</div>
     <div class="section-h"><h2>Audit trail · ${d.rounds_run} round(s)</h2></div>
     ${(d.trail || []).map(r => roundHTML(r, r.n === d.best_round)).join("")}`;
   $("again").onclick = () => startRun("single");
@@ -627,7 +713,7 @@ function renderStagesDone(d) {
     : stopBadge(s.stop_reason);
 
   $("pane").innerHTML = explainHTML(agentic ? "agentic" : "stages") +
-    `<div id="verify-badge" class="verify-wrap"><span class="vbadge mut">verifying signature…</span></div>` +
+    `<div id="verify-badge" class="verify-wrap"><span class="vbadge mut">verifying signature…</span></div><div id="proof-host"></div>` +
     `<div id="pipe-host">${pipeHTML(stages.map(s => ({ name: s.name })))}</div>` + `
     <div class="stats">
       <div class="stat"><div class="k">${agentic ? "Agent" : "Pipeline"}</div><div class="v">${verdict}</div></div>
@@ -638,8 +724,8 @@ function renderStagesDone(d) {
     <details class="ask" ${agentic ? "open" : ""}><summary>${askLabel}</summary><div class="ask-body">
       ${stages.map((s, i) => `<p><b>${i + 1}. ${esc(s.name)}</b> — ${esc(s.goal || s.instruction)}${agentic && s.thought ? `<br><span style="color:var(--muted)">why: ${esc(s.thought)}</span>` : ""}</p>`).join("")}
     </div></details>
-    <div class="section-h"><h2>Final artifact · after ${stages.length} ${unit}s</h2><button class="cta sm" id="again">Run again</button></div>
-    <div class="artifact">${esc(d.final_artifact)}</div>
+    <div class="section-h"><h2>Final artifact · after ${stages.length} ${unit}s</h2><div style="display:flex;gap:8px"><button class="btn-out" onclick="copyArtifact(this)">copy</button><button class="cta sm" id="again">Run again</button></div></div>
+    <div class="artifact md">${mdRender(d.final_artifact)}</div>
     <div class="section-h"><h2>Audit trail · ${stages.length} ${unit}s, ${d.total_rounds} rounds</h2></div>
     ${stages.map((s, i) => `
       <div class="stage-block">
