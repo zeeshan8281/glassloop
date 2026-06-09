@@ -1,0 +1,19 @@
+{
+  "stages": [
+    {
+      "name": "Angle",
+      "goal": "Produce a tight outline for a punchy 120-150 word X/Twitter post pitching 'verifiable agent loops': a closed-loop agent running inside an EigenCompute TEE so the whole loop is attestable and can custody funds. The outline must lock in: (a) the single sharpest hook line, (b) the three beats the post must hit — what a closed agent loop is, the trust/eval-gate problem unattended loops have, and how a TEE (verifiable execution + dedicated wallet + audit trail) solves it — and (c) a clean closing line. Output the outline only: hook, three bullet beats, closing line.",
+      "rubric": "PASS only if the outline: (1) has ONE clearly strongest hook line, not several; (2) names all three required beats explicitly and in a logical order; (3) the beats actually land the core insight that everyone in agent-looping is stuck on the eval/trust gate and a TEE is what makes an unattended loop trustworthy; (4) has a distinct closing line; (5) is lean — an outline, not prose. FAIL if vague, missing a beat, multi-hook, or already a full draft."
+    },
+    {
+      "name": "Draft",
+      "goal": "Write the full 120-150 word X/Twitter post from the approved outline. Confident, technical-but-readable, no hashtags, no emoji spam. Follow the outline's hook, beats and closing line.",
+      "rubric": "PASS only if ALL hold: (1) clearly explains what a closed agent loop is in one line; (2) names the trust/eval-gate problem unattended loops have; (3) explains how a TEE (verifiable execution + dedicated wallet + audit trail) solves it; (4) follows the outline's structure; (5) reads like a sharp practitioner wrote it, not marketing fluff; (6) no hashtags, no emoji spam, no buzzword salad. Length may run slightly long here — that's fixed in polish. FAIL if it buries the insight, is over-hyped, or ignores the outline."
+    },
+    {
+      "name": "Polish",
+      "goal": "Tighten the draft to roughly 120-160 words. Sharpen the opening and closing lines, cut any redundancy or buzzwords, and make every sentence earn its place — without losing any of the three required beats. Don't obsess over an exact word count; prioritise sharpness.",
+      "rubric": "PASS if: (1) length is in a sensible range (~110-180 words); (2) the opening line is strong and the closing line is clean; (3) all three beats (closed loop / trust-gate problem / TEE solution) survive intact; (4) no redundant sentences, no buzzword salad, no hashtags, no emoji spam; (5) it reads tighter and sharper than a typical draft. Judge on craft — do NOT fail a sharp post over small length differences. FAIL only if flabby, a beat was lost, or it is clearly far too long/short."
+    }
+  ]
+}

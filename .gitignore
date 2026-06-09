@@ -1,0 +1,10 @@
+node_modules/
+.npm-cache/
+.venv/
+.claude/
+.env
+deploy.env
+result.json
+Dockerfile.keep
+glassloop/.vercel/
+.DS_Store

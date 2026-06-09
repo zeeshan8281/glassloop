@@ -1,0 +1,690 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>GlassLoop — a closed agent loop you can verify</title>
+<meta name="description" content="A closed-loop agent in an EigenCompute TEE. Watch the worker draft and the judge critique, live — single loop or multi-stage pipeline. Every step attestable on-chain." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@300..700&family=Geist+Mono:wght@400..600&display=swap" rel="stylesheet" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/MotionPathPlugin.min.js"></script>
+<style>
+  :root {
+    --bg: #0a0a0a; --card: #171717; --popover: #1f1f1f;
+    --line: rgba(255,255,255,.10); --line-2: rgba(255,255,255,.16);
+    --text: #fafafa; --muted: #a3a3a3;
+    --primary: #1a0c6d; --indigo: #818cf8; --indigo-2: #a5b4fc; --indigo-3: #6366f1;
+    --good: #4ade80; --amber: #fbbf24; --bad: #f87171;
+    --sans: 'Geist', ui-sans-serif, system-ui, sans-serif;
+    --mono: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+    --heading: 'ABC Repro Variable', 'Geist', system-ui, sans-serif;
+    --r-card: 8px; --r-el: 6px;
+  }
+  @font-face { font-family: 'ABC Repro Variable'; src: url('/fonts/ABCReproVariable.woff2') format('woff2'); font-weight: 100 900; font-display: swap; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--sans); -webkit-font-smoothing: antialiased; }
+  body { min-height: 100vh; background: radial-gradient(900px 480px at 82% -8%, rgba(99,102,241,.12), transparent 60%), radial-gradient(700px 420px at -5% 2%, rgba(26,12,109,.30), transparent 55%), var(--bg); }
+  .wrap { max-width: 900px; margin: 0 auto; padding: 52px 20px 90px; }
+  a { color: var(--indigo); }
+
+  header { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+  .emark { height: 30px; width: auto; color: var(--text); }
+  .brand { font-family: var(--heading); font-weight: 600; font-size: 25px; letter-spacing: -.6px; }
+  .brand .lp, .lp { color: var(--indigo); }
+  .tag { color: var(--muted); font-size: 15px; line-height: 1.55; max-width: 680px; margin: 0 0 26px; }
+  .tag em { color: var(--indigo-2); font-style: normal; }
+
+  .trust { background: var(--card); border: 1px solid var(--line); border-radius: var(--r-card); padding: 20px 22px; margin-bottom: 22px; }
+  .trust .th { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .trust .th svg { width: 18px; height: 18px; stroke: var(--indigo-2); fill: none; }
+  .trust .th h2 { font-family: var(--heading); font-size: 17px; font-weight: 600; margin: 0; letter-spacing: -.2px; }
+  .trust p { color: var(--muted); font-size: 13.8px; line-height: 1.65; margin: 0 0 16px; }
+  .trust p b { color: var(--text); font-weight: 600; }
+  .trust .actions { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  .btn-out { font: inherit; font-size: 13px; font-weight: 500; color: var(--text); cursor: pointer; background: transparent; border: 1px solid var(--line-2); border-radius: var(--r-el); padding: 8px 13px; text-decoration: none; display: inline-flex; align-items: center; gap: 7px; transition: border-color .15s, background .15s; }
+  .btn-out:hover { border-color: var(--indigo); background: rgba(129,140,248,.06); }
+  .link-mut { color: var(--muted); font-size: 13px; text-decoration: underline; text-underline-offset: 3px; }
+  .link-mut:hover { color: var(--text); }
+
+  .askbox { margin-bottom: 18px; }
+  .askbox label { display: block; font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); margin-bottom: 7px; }
+  .askbox textarea { width: 100%; resize: vertical; min-height: 50px; background: var(--card); color: var(--text); border: 1px solid var(--line-2); border-radius: var(--r-card); padding: 12px 14px; font-family: var(--sans); font-size: 14px; line-height: 1.5; outline: none; transition: border-color .15s; }
+  .askbox textarea:focus { border-color: var(--indigo); }
+  .askbox textarea::placeholder { color: var(--muted); }
+  .askhint { color: var(--muted); font-size: 12px; font-family: var(--mono); margin-top: 7px; }
+  .askhint b { color: var(--indigo-2); }
+
+  .tabs { display: flex; gap: 6px; border-bottom: 1px solid var(--line); margin-bottom: 18px; }
+  .tab { font: inherit; font-size: 14px; font-weight: 500; color: var(--muted); cursor: pointer; background: transparent; border: 0; border-bottom: 2px solid transparent; padding: 10px 14px; margin-bottom: -1px; display: flex; align-items: center; gap: 8px; transition: color .15s, border-color .15s; }
+  .tab:hover { color: var(--text); }
+  .tab.on { color: var(--text); border-bottom-color: var(--indigo); }
+  .tab .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--line-2); }
+  .tab.on .dot { background: var(--indigo); box-shadow: 0 0 8px var(--indigo); }
+
+  .explain { background: var(--card); border: 1px solid var(--line); border-left: 2px solid var(--indigo); border-radius: var(--r-el); padding: 14px 16px; color: var(--muted); font-size: 13.6px; line-height: 1.6; margin-bottom: 14px; }
+  .explain b { color: var(--text); font-weight: 600; }
+  .explain em { color: var(--indigo-2); font-style: normal; }
+
+  .start-row { display: flex; align-items: center; gap: 14px; margin: 4px 0; }
+  button.cta { font: inherit; font-weight: 500; font-size: 14px; color: var(--text); cursor: pointer; background: var(--primary); border: 1px solid rgba(255,255,255,.14); border-radius: var(--r-el); padding: 10px 18px; transition: background .15s, transform .05s; }
+  button.cta:hover { background: #271597; }
+  button.cta:active { transform: translateY(1px); }
+  button.cta:disabled { opacity: .5; cursor: default; }
+  button.cta.sm { padding: 8px 15px; font-size: 13px; }
+  .note { color: var(--muted); font-size: 12.5px; font-family: var(--mono); }
+
+  /* ---- single-loop diagram (SVG) ---- */
+  .loopviz { background: var(--card); border: 1px solid var(--line); border-radius: var(--r-card); padding: 16px 18px 12px; margin-bottom: 12px; }
+  .loopviz svg { width: 100%; height: auto; display: block; max-height: 200px; }
+  .lv-node rect { fill: var(--popover); stroke: var(--line-2); stroke-width: 1; transition: stroke .3s, filter .3s; }
+  .lv-node.active rect { stroke: var(--indigo); filter: drop-shadow(0 0 7px rgba(129,140,248,.6)); }
+  .lv-node.done.active rect { stroke: var(--good); filter: drop-shadow(0 0 7px rgba(74,222,128,.55)); }
+  .lv-node text { fill: var(--muted); transition: fill .3s; }
+  .lv-node.active text { fill: var(--text); }
+  .lv-node .nt { font-size: 13px; font-weight: 600; font-family: var(--sans); }
+  .lv-node .ns { font-size: 9.5px; font-family: var(--mono); }
+  .lv-path { fill: none; stroke: var(--line-2); stroke-width: 1.4; }
+  .lv-flow { stroke-dasharray: 4 6; animation: flow 1s linear infinite; }
+  @keyframes flow { to { stroke-dashoffset: -10; } }
+  .lv-return { stroke: var(--indigo); opacity: .4; transition: opacity .25s, filter .25s; }
+  .lv-return.pulse { opacity: 1; filter: drop-shadow(0 0 5px rgba(129,140,248,.7)); }
+  .lv-exit { stroke: var(--line-2); opacity: .55; transition: opacity .25s, stroke .25s; }
+  .lv-exit.pulse { stroke: var(--good); opacity: 1; }
+  .lv-arrowlabel { fill: var(--muted); font-family: var(--mono); font-size: 9px; }
+  .lv-motion { fill: none; stroke: none; }
+  .lv-packet { fill: var(--indigo); filter: drop-shadow(0 0 5px var(--indigo)); opacity: 0; }
+
+  /* ---- multi-stage pipeline diagram (HTML) ---- */
+  .pipe { display: flex; align-items: stretch; background: var(--card); border: 1px solid var(--line); border-radius: var(--r-card); padding: 18px 16px; margin-bottom: 12px; }
+  .pstage { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; position: relative; }
+  .pring { width: 34px; height: 34px; border-radius: 50%; border: 2px dashed var(--line-2); position: relative; display: flex; align-items: center; justify-content: center; transition: border-color .3s; }
+  .pring::after { content: ""; position: absolute; width: 6px; height: 6px; border-radius: 50%; background: var(--line-2); top: -3px; left: 50%; margin-left: -3px; transition: background .3s; }
+  .pstage.active .pring { border-color: var(--indigo); animation: spin 1.5s linear infinite; }
+  .pstage.active .pring::after { background: var(--indigo); box-shadow: 0 0 7px var(--indigo); }
+  .pstage.done .pring { border: 2px solid var(--good); border-style: solid; animation: none; }
+  .pstage.done .pring::after { display: none; }
+  .pstage.done .pring .ck { color: var(--good); font-size: 16px; font-weight: 700; }
+  .pring .ck { display: none; }
+  .pstage.done .pring .ck { display: block; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .pname { font-size: 13px; font-weight: 600; color: var(--muted); transition: color .3s; }
+  .pstage.active .pname, .pstage.done .pname { color: var(--text); }
+  .pstat { font-family: var(--mono); font-size: 10.5px; color: var(--muted); min-height: 14px; }
+  .pstage.active .pstat { color: var(--indigo-2); }
+  .pstage.done .pstat { color: var(--good); }
+  .pstage.failed .pring { border: 2px solid var(--bad); border-style: solid; animation: none; }
+  .pstage.failed .pring::after { display: none; }
+  .pstage.failed .pring .ck { display: block; color: var(--bad); font-size: 15px; font-weight: 700; }
+  .pstage.failed .pname { color: var(--text); }
+  .pstage.failed .pstat { color: var(--bad); }
+  .pstage.tried .pring { border-color: var(--line-2); animation: none; }
+  .pstage.tried .pring::after { display: none; }
+  .pstage.tried .pring .ck { display: block; color: var(--muted); font-size: 13px; }
+  .pstage.tried .pname { color: var(--muted); }
+  .pstage.tried .pstat { color: var(--muted); }
+  .parrow { display: flex; align-items: center; color: var(--muted); font-size: 15px; padding: 0 2px; align-self: center; }
+  .phand { flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; gap: 8px; justify-content: center; }
+  .phand .hbox { font-size: 11px; font-family: var(--mono); color: var(--muted); border: 1px solid var(--line-2); border-radius: var(--r-el); padding: 8px 10px; transition: color .3s, border-color .3s; }
+  .phand.done .hbox { color: var(--good); border-color: rgba(74,222,128,.4); }
+
+  .lv-status { font-family: var(--mono); font-size: 12px; color: var(--muted); margin: 8px 0 0; text-align: center; min-height: 16px; }
+  .lv-status b { color: var(--text); } .lv-status .ok { color: var(--good); } .lv-status .no { color: var(--bad); }
+
+  /* ---- live transcript: the agents' actual output ---- */
+  .transcript { background: var(--card); border: 1px solid var(--line); border-radius: var(--r-card); padding: 6px 0; margin-bottom: 6px; max-height: 420px; overflow-y: auto; }
+  .transcript:empty { display: none; }
+  .ts-empty { color: var(--muted); font-size: 13px; padding: 18px; text-align: center; font-family: var(--mono); }
+  .ts-stage { font-family: var(--heading); font-weight: 600; font-size: 13px; color: var(--text); padding: 12px 18px 6px; border-top: 1px solid var(--line); display: flex; align-items: center; gap: 8px; }
+  .ts-stage:first-child { border-top: 0; }
+  .ts-stage .mk { color: var(--indigo); }
+  .ts-thought { color: var(--muted); font-family: var(--sans); font-weight: 400; text-transform: none; letter-spacing: 0; font-size: 12px; }
+  .ts-round { padding: 6px 18px 10px; }
+  .ts-agent { margin-top: 8px; }
+  .ts-who { display: flex; align-items: center; gap: 8px; font-size: 11px; font-family: var(--mono); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 5px; }
+  .ts-agent.worker .ts-who { color: var(--indigo-2); }
+  .ts-agent.judge .ts-who { color: var(--amber); }
+  .ts-who .bar { width: 2px; height: 11px; border-radius: 2px; }
+  .ts-agent.worker .bar { background: var(--indigo); } .ts-agent.judge .bar { background: var(--amber); }
+  .ts-text { font-family: var(--mono); font-size: 12.5px; line-height: 1.6; color: #d4d4d4; white-space: pre-wrap; border-left: 2px solid var(--line); padding-left: 12px; }
+  .ts-text.live { color: #ededed; }
+  .ts-crit { font-size: 13px; line-height: 1.55; color: #cfcfcf; border-left: 2px solid rgba(251,191,36,.35); padding-left: 12px; }
+  .ts-crit .sc { font-family: var(--mono); }
+  .cursor { display: inline-block; width: 7px; background: var(--indigo); margin-left: 1px; animation: blink .9s steps(1) infinite; color: transparent; }
+  @keyframes blink { 50% { opacity: 0; } }
+  .pill { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 500; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line-2); font-family: var(--mono); }
+  .pill.good { color: var(--good); border-color: rgba(74,222,128,.35); background: rgba(74,222,128,.07); }
+  .pill.bad  { color: var(--bad);  border-color: rgba(248,113,113,.35); background: rgba(248,113,113,.07); }
+  .pill.warn { color: var(--amber); border-color: rgba(251,191,36,.35); background: rgba(251,191,36,.07); }
+  .pill.mut  { color: var(--muted); }
+
+  /* budget / spend meter */
+  .meter { background: var(--card); border: 1px solid var(--line); border-radius: var(--r-el); padding: 11px 14px; margin-bottom: 12px; }
+  .meter:empty { display: none; }
+  .meter-row { display: flex; justify-content: space-between; font-family: var(--mono); font-size: 12px; color: var(--muted); margin-bottom: 7px; }
+  .meter-row b { color: var(--text); }
+  .meter-bar { height: 5px; border-radius: 3px; background: var(--popover); overflow: hidden; }
+  .meter-fill { height: 100%; background: linear-gradient(90deg, var(--indigo-3), var(--indigo)); border-radius: 3px; transition: width .4s ease, background .3s; }
+  .meter-fill.warn { background: var(--amber); } .meter-fill.over { background: var(--bad); }
+  .meta-line { font-family: var(--mono); font-size: 12px; color: var(--muted); margin: 2px 0 0; }
+
+  /* signature verification badge */
+  .verify-wrap { margin-bottom: 14px; }
+  .vbadge { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 500; font-family: var(--mono); padding: 8px 13px; border-radius: var(--r-el); border: 1px solid var(--line-2); }
+  .vbadge.ok  { color: var(--good); border-color: rgba(74,222,128,.4); background: rgba(74,222,128,.07); }
+  .vbadge.bad { color: var(--bad); border-color: rgba(248,113,113,.45); background: rgba(248,113,113,.1); }
+  .vbadge.mut { color: var(--muted); }
+
+  /* "the ask" — the goal each stage was given */
+  .ask { margin: 0 0 14px; border: 1px solid var(--line); border-radius: var(--r-el); background: var(--card); overflow: hidden; }
+  .ask summary { cursor: pointer; list-style: none; padding: 11px 14px; font-family: var(--mono); font-size: 11.5px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; display: flex; align-items: center; gap: 8px; }
+  .ask summary::-webkit-details-marker { display: none; }
+  .ask summary::before { content: "▸"; transition: transform .15s; display: inline-block; }
+  .ask[open] summary::before { transform: rotate(90deg); }
+  .ask .ask-body { padding: 0 16px 6px; }
+  .ask .ask-body p { color: #cfcfcf; font-size: 13.3px; line-height: 1.55; margin: 0 0 12px; }
+  .ask .ask-body b { color: var(--text); font-family: var(--sans); }
+
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 14px 0 6px; }
+  .stat { background: var(--card); border: 1px solid var(--line); border-radius: var(--r-card); padding: 16px; }
+  .stat .k { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .7px; }
+  .stat .v { font-size: 23px; font-weight: 600; margin-top: 6px; font-family: var(--heading); letter-spacing: -.3px; }
+  .stat .v.mono { font-family: var(--mono); font-size: 21px; }
+
+  .section-h { display:flex; align-items:center; justify-content:space-between; margin: 26px 0 12px; }
+  .section-h h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .8px; color: var(--muted); margin: 0; font-weight: 500; }
+  .goal { background: var(--card); border: 1px solid var(--line); border-left: 2px solid var(--indigo); border-radius: var(--r-el); padding: 14px 16px; color: #d4d4d4; font-size: 14px; line-height: 1.6; }
+  .artifact { background: var(--card); border: 1px solid var(--line); border-radius: var(--r-card); padding: 20px 22px; white-space: pre-wrap; line-height: 1.7; font-size: 15px; color: #ededed; }
+
+  .stage-block { margin-bottom: 16px; }
+  .stage-head { display: flex; align-items: center; gap: 10px; margin: 0 0 8px; }
+  .stage-head .idx { width: 18px; height: 18px; border-radius: 50%; font-family: var(--mono); font-size: 10.5px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--good); color: var(--good); }
+  .stage-head .sname { font-family: var(--heading); font-weight: 600; font-size: 15px; }
+  .stage-head .rs { margin-left: auto; font-family: var(--mono); font-size: 12px; color: var(--muted); }
+
+  .round { background: var(--card); border: 1px solid var(--line); border-radius: var(--r-el); margin-bottom: 9px; overflow: hidden; }
+  .round summary { cursor: pointer; list-style: none; padding: 12px 16px; display: flex; align-items: center; gap: 12px; }
+  .round summary::-webkit-details-marker { display: none; }
+  .round .rn { font-family: var(--mono); color: var(--muted); font-size: 12.5px; }
+  .round .rs { margin-left: auto; font-family: var(--mono); font-size: 12.5px; color: var(--text); }
+  .round .body { padding: 2px 16px 16px; border-top: 1px solid var(--line); }
+  .round .lbl { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .6px; margin: 14px 0 6px; }
+  .round .crit { color: #d4d4d4; font-size: 13.8px; line-height: 1.6; }
+  .round .draft { white-space: pre-wrap; font-size: 13px; line-height: 1.65; color: #b3b3b3; background: var(--bg); border: 1px solid var(--line); border-radius: var(--r-el); padding: 12px 14px; max-height: 260px; overflow: auto; }
+
+  footer { color: var(--muted); font-size: 12.5px; margin-top: 42px; line-height: 1.75; border-top: 1px solid var(--line); padding-top: 18px; }
+  .skel { color: var(--muted); font-size: 14px; }
+  .spin-i { display:inline-block; width:12px; height:12px; border:2px solid var(--indigo); border-right-color: transparent; border-radius:50%; animation: s .7s linear infinite; vertical-align: -1px; }
+  @keyframes s { to { transform: rotate(360deg); } }
+
+  .overlay { position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; padding: 20px; background: rgba(0,0,0,.74); backdrop-filter: blur(6px); animation: fade .25s ease; }
+  .overlay.hide { opacity: 0; pointer-events: none; transition: opacity .3s ease; }
+  @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+  .modal { width: 100%; max-width: 470px; background: var(--card); border: 1px solid var(--line); border-radius: var(--r-card); padding: 30px 28px 22px; box-shadow: 0 30px 80px rgba(0,0,0,.6); animation: pop .28s cubic-bezier(.2,.9,.3,1.2); }
+  @keyframes pop { from { transform: translateY(12px) scale(.98); opacity: 0; } to { transform: none; opacity: 1; } }
+  .modal .ic { width: 60px; height: 60px; margin: 2px auto 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: radial-gradient(circle at 50% 35%, rgba(129,140,248,.18), rgba(26,12,109,.25)); border: 1px solid var(--line-2); }
+  .modal .ic svg { width: 26px; height: 26px; stroke: var(--indigo-2); fill: none; }
+  .modal h3 { text-align: center; font-family: var(--heading); font-size: 22px; font-weight: 600; margin: 0 0 8px; letter-spacing: -.4px; }
+  .modal .sub { text-align: center; color: var(--muted); font-size: 14px; margin: 0 0 24px; }
+  .steps { display: flex; flex-direction: column; gap: 17px; margin-bottom: 24px; }
+  .step { display: flex; gap: 14px; }
+  .step .num { flex: 0 0 25px; width: 25px; height: 25px; border-radius: 50%; font-size: 12.5px; font-weight: 600; display: flex; align-items: center; justify-content: center; margin-top: 1px; font-family: var(--mono); }
+  .step:nth-child(1) .num { color: var(--indigo); background: rgba(129,140,248,.12); border: 1px solid rgba(129,140,248,.4); }
+  .step:nth-child(2) .num { color: var(--indigo-2); background: rgba(165,180,252,.12); border: 1px solid rgba(165,180,252,.4); }
+  .step:nth-child(3) .num { color: var(--indigo-3); background: rgba(99,102,241,.14); border: 1px solid rgba(99,102,241,.45); }
+  .step .t { font-weight: 600; font-size: 14.5px; margin: 0 0 3px; }
+  .step .d { color: var(--muted); font-size: 13.3px; line-height: 1.5; margin: 0; }
+  .modal button.cta { width: 100%; padding: 12px; font-size: 14px; margin-top: 2px; }
+</style>
+</head>
+<body>
+<div class="overlay" id="welcome">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="w-title">
+    <div class="ic"><svg viewBox="0 0 24 24" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2" /><path d="M8 11V8a4 4 0 0 1 8 0v3" /></svg></div>
+    <h3 id="w-title">Welcome to Glass<span class="lp">Loop</span></h3>
+    <p class="sub">A closed agent loop, verified by hardware</p>
+    <div class="steps">
+      <div class="step"><div class="num">1</div><div><p class="t">It loops until it's good</p><p class="d">Worker drafts, a stronger judge grades it, it revises — until the gate passes or a stop fires.</p></div></div>
+      <div class="step"><div class="num">2</div><div><p class="t">Sealed in a secure enclave</p><p class="d">The whole loop runs in a tamper-proof TEE. No operator can peek in or change a verdict.</p></div></div>
+      <div class="step"><div class="num">3</div><div><p class="t">Trust is verified, not claimed</p><p class="d">Every result is signed by the enclave's key. This page checks that signature for you.</p></div></div>
+    </div>
+    <button class="cta" id="welcome-ok">Got it, let me in</button>
+  </div>
+</div>
+
+<div class="wrap">
+  <header>
+    <svg class="emark" viewBox="0 0 805 920" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <path d="M459.55 459.55H344.665V689.255H229.752V459.479V0H0V459.479V689.255V918.983V919.055H229.752V918.983H344.665V919.055H459.55V918.983H689.328V689.255H459.55V459.55Z"/>
+      <path d="M804.216 0H689.352V229.752H804.216V0Z"/>
+      <path d="M574.438 0H459.55V0.0241462H349.323V114.888H459.55V459.479H574.438V459.433H689.328V229.679H574.438V0Z"/>
+    </svg>
+    <span class="brand">Glass<span class="lp">Loop</span></span>
+  </header>
+  <p class="tag">Watch an agent <em>draft, grade itself, and revise</em> — live, inside a hardware enclave that signs every result so you can check it's real.</p>
+
+  <div class="trust">
+    <div class="th"><svg viewBox="0 0 24 24" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 5v6c0 5 3.4 8.5 8 10 4.6-1.5 8-5 8-10V5l-8-3Z"/></svg><h2>Why you can trust this</h2></div>
+    <p><b>Hardware</b> — runs in an AMD SEV-SNP / Intel TEE; the operator can't read or alter it. <b>Build</b> — the code inside the enclave is provably the deployed image, its digest on-chain. <b>Signed</b> — every result is signed by a key only the attested enclave holds, and this page verifies that signature.</p>
+    <div class="actions">
+      <a class="btn-out" href="https://verify-sepolia.eigencloud.xyz/app/0x93F0FF4EF5f52294f741fB4CB37D86928218cCb4" target="_blank" rel="noopener">Check the TEE attestation →</a>
+      <a class="link-mut" href="https://hub.docker.com/r/zeeshan8281/closed-loop-agent" target="_blank" rel="noopener">View the image</a>
+    </div>
+  </div>
+
+  <div class="askbox">
+    <label>your goal · used by every mode below</label>
+    <textarea id="goal-input" rows="2" placeholder="Ask the loop to produce anything — e.g. &quot;a sharp 6-line poem about trustless agents&quot;, &quot;a cold email pitching verifiable compute&quot;. Leave blank to run the default demo."></textarea>
+    <div class="askhint">type a goal, then pick <b>any</b> tab — Single, Fixed pipeline, or Agentic — and hit start. the same goal runs in whichever mode you choose · leave blank for the default demo</div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab on" id="tab-single" onclick="selectTab('single')"><span class="dot"></span>Single loop</button>
+    <button class="tab" id="tab-stages" onclick="selectTab('stages')"><span class="dot"></span>Fixed pipeline</button>
+    <button class="tab" id="tab-agentic" onclick="selectTab('agentic')"><span class="dot"></span>Agentic loop</button>
+  </div>
+
+  <div id="pane"></div>
+
+  <footer>
+    Worker drafts, judge grades, it loops — in a TEE that signs its output. Nothing runs until you start it.
+    <br />App <span style="font-family:var(--mono)">0x93F0…cCb4</span> on EigenCompute · result signed with Ed25519, verified in your browser.
+  </footer>
+</div>
+
+<script>
+if (window.gsap && window.MotionPathPlugin) gsap.registerPlugin(MotionPathPlugin);
+const esc = (s) => String(s ?? "").replace(/[&<>]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;" }[c]));
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+const $ = (id) => document.getElementById(id);
+const usd = (n) => "$" + Number(n || 0).toFixed(4);
+const toks = (t) => ((t?.input || 0) + (t?.output || 0)).toLocaleString();
+
+// the loop's stop reason as a labelled pill — this is the "it halts" proof
+function stopBadge(reason) {
+  const m = {
+    gate_cleared: ["good", "✓ gate cleared"],
+    completed: ["good", "✓ all gates cleared"],
+    no_progress: ["warn", "⏹ stopped · no progress"],
+    budget_exceeded: ["bad", "⏹ stopped · budget hit"],
+    max_rounds: ["mut", "⏹ stopped · max rounds"],
+    agent_done: ["good", "✓ agent reached the goal"],
+    max_steps: ["mut", "⏹ stopped · step budget"],
+    incomplete: ["warn", "incomplete"],
+  };
+  const [c, l] = m[reason] || ["mut", String(reason || "")];
+  return `<span class="pill ${c}">${l}</span>`;
+}
+function meterHTML(cost, budget, tokens) {
+  const pct = Math.min(100, (cost / budget) * 100);
+  const cls = pct >= 100 ? "over" : (pct >= 75 ? "warn" : "");
+  return `<div class="meter-row"><span>spent <b>${usd(cost)}</b> / $${Number(budget).toFixed(2)} budget ceiling</span><span><b>${tokens}</b> tokens</span></div><div class="meter-bar"><div class="meter-fill ${cls}" style="width:${pct}%"></div></div>`;
+}
+
+// ---- real attestation: verify the enclave's Ed25519 signature over the result ----
+// Pinned public key (derived from a seed EigenCompute's KMS only releases to the
+// attested image). If a result verifies against this key, it was produced by the
+// verified code in the enclave — not a proxy. Baked in so the proxy can't swap it.
+const PINNED_PUBKEY = "cX8lAQ/L15+dEdpVs1fQL6EEKl82tOc+SN71jVUrke8=";
+const b64bytes = (b64) => { const s = atob(b64); const a = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) a[i] = s.charCodeAt(i); return a; };
+// same deterministic JSON the enclave signed (sorted keys)
+function canonical(v) {
+  if (Array.isArray(v)) return "[" + v.map(canonical).join(",") + "]";
+  if (v && typeof v === "object") return "{" + Object.keys(v).sort().map(k => JSON.stringify(k) + ":" + canonical(v[k])).join(",") + "}";
+  return JSON.stringify(v);
+}
+// verify over the EXACT signed bytes the enclave shipped — no re-serialization
+async function verifyResult(signedStr, sigB64) {
+  if (!signedStr || !sigB64 || !window.crypto?.subtle) return null;
+  try {
+    const key = await crypto.subtle.importKey("raw", b64bytes(PINNED_PUBKEY), { name: "Ed25519" }, false, ["verify"]);
+    return await crypto.subtle.verify({ name: "Ed25519" }, key, b64bytes(sigB64), new TextEncoder().encode(signedStr));
+  } catch (e) { return null; }
+}
+async function paintVerify(signedStr, sig) {
+  const el = document.getElementById("verify-badge"); if (!el) return;
+  const ok = await verifyResult(signedStr, sig);
+  if (ok === true) el.innerHTML = `<span class="vbadge ok">✓ signature verified — this exact result was produced by the attested enclave</span>`;
+  else if (ok === false) el.innerHTML = `<span class="vbadge bad">✗ signature invalid — this result may have been tampered with</span>`;
+  else el.innerHTML = `<span class="vbadge mut">result is signed · open in a current browser to verify the signature</span>`;
+}
+
+(function () {
+  const ov = $("welcome");
+  const close = () => { ov.classList.add("hide"); setTimeout(() => ov.remove(), 300); };
+  $("welcome-ok").onclick = close;
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && document.body.contains(ov)) close(); });
+})();
+
+let TAB = "single";
+let token = 0;
+let packetTween = null;
+
+function explainHTML(mode) {
+  if (mode === "agentic") return `<div class="explain"><b>The agent plans its own steps.</b> No fixed stages — an orchestrator reads the goal and the work so far, decides the next step (and how to grade it), runs it, then decides again, adapting to what failed — until it judges the goal met or hits a stop. <em>The steps below are the agent's, not ours.</em></div>`;
+  if (mode === "stages") return `<div class="explain"><b>A fixed pipeline you design.</b> Angle → Draft → Polish — stages a <em>human</em> pre-defines, each its own loop with its own gate. The agent loops <em>within</em> a stage, but it doesn't choose the stages.</div>`;
+  return `<div class="explain"><b>One loop.</b> Worker drafts → judge scores it against a rubric → a fail feeds the critique back → revise. Repeats until it clears the gate or hits a stop.</div>`;
+}
+
+// ---- single-loop diagram (SVG, GSAP packet) ----
+function diagramHTML() {
+  return `
+  <div class="loopviz">
+    <svg viewBox="0 0 520 190" xmlns="http://www.w3.org/2000/svg">
+      <defs><marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#5a5a5a"/></marker></defs>
+      <path class="lv-motion" id="lv-motion" d="M105 95 L415 95 C415 28 105 28 105 95"/>
+      <path id="lv-return" class="lv-path lv-return lv-flow" d="M415 68 C415 14 105 14 105 68" marker-end="url(#ah)"/>
+      <text class="lv-arrowlabel" x="260" y="10" text-anchor="middle">critique → revise</text>
+      <path class="lv-path lv-flow" d="M180 95 L333 95" marker-end="url(#ah)"/>
+      <text class="lv-arrowlabel" x="256" y="88" text-anchor="middle">draft</text>
+      <path id="lv-exit" class="lv-path lv-exit" d="M415 122 L415 152" marker-end="url(#ah)"/>
+      <text class="lv-arrowlabel" x="423" y="144" text-anchor="start">pass</text>
+      <g class="lv-node" id="n-worker"><rect x="30" y="68" width="150" height="54" rx="6"/><text class="nt" x="105" y="93" text-anchor="middle">Worker</text><text class="ns" x="105" y="109" text-anchor="middle">drafts · sonnet</text></g>
+      <g class="lv-node" id="n-judge"><rect x="340" y="68" width="150" height="54" rx="6"/><text class="nt" x="415" y="93" text-anchor="middle">Judge</text><text class="ns" x="415" y="109" text-anchor="middle">eval gate · opus</text></g>
+      <g class="lv-node done" id="n-done"><rect x="340" y="156" width="150" height="32" rx="6"/><text class="nt" x="415" y="177" text-anchor="middle" style="font-size:11px">hands back ✓</text></g>
+      <circle r="5" class="lv-packet" id="lv-packet"/>
+    </svg>
+    <div class="lv-status" id="lv-status"></div>
+  </div>`;
+}
+function startPacket() {
+  const p = $("lv-packet"); if (!p || !window.gsap) return;
+  gsap.set(p, { opacity: 1 }); packetTween && packetTween.kill();
+  packetTween = gsap.to(p, { duration: 2.4, repeat: -1, ease: "none", motionPath: { path: "#lv-motion", align: "#lv-motion", alignOrigin: [0.5, 0.5] } });
+}
+function stopPacket() { packetTween && packetTween.kill(); packetTween = null; const p = $("lv-packet"); p && window.gsap && gsap.set(p, { opacity: 0 }); }
+function ring(cx, cy, color) {
+  const svg = document.querySelector(".loopviz svg"); if (!svg || !window.gsap) return;
+  const c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+  c.setAttribute("cx", cx); c.setAttribute("cy", cy); c.setAttribute("fill", "none"); c.setAttribute("stroke", color); c.setAttribute("stroke-width", "2");
+  svg.appendChild(c);
+  gsap.fromTo(c, { attr: { r: 6 }, opacity: .9 }, { attr: { r: 36 }, opacity: 0, duration: 1.0, ease: "power2.out", onComplete: () => c.remove() });
+}
+function setNode(id) {
+  ["n-orch", "n-worker", "n-judge", "n-done"].forEach(x => { const e = $(x); e && e.classList.remove("active"); });
+  const e = $(id); e && e.classList.add("active");
+}
+
+// ---- agentic diagram (SVG): Orchestrator plans → Worker executes → Judge ----
+// ---- scores → verdict back to the Orchestrator → it decides again, or done ----
+function agenticDiagramHTML() {
+  return `
+  <div class="loopviz">
+    <svg viewBox="0 0 520 222" xmlns="http://www.w3.org/2000/svg">
+      <defs><marker id="ah2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#5a5a5a"/></marker></defs>
+      <path class="lv-motion" id="lv-motion" d="M260 48 L105 176 L415 176 C415 100 340 74 260 48"/>
+      <path class="lv-path lv-flow" d="M206 74 L122 150" marker-end="url(#ah2)"/>
+      <text class="lv-arrowlabel" x="132" y="120" text-anchor="middle">plan step</text>
+      <path class="lv-path lv-flow" d="M188 176 L329 176" marker-end="url(#ah2)"/>
+      <text class="lv-arrowlabel" x="258" y="168" text-anchor="middle">execute → draft</text>
+      <path id="lv-return" class="lv-path lv-return lv-flow" d="M412 150 C412 100 378 82 322 74" marker-end="url(#ah2)"/>
+      <text class="lv-arrowlabel" x="400" y="118" text-anchor="middle">verdict</text>
+      <path id="lv-exit" class="lv-path lv-exit" d="M352 40 L372 40" marker-end="url(#ah2)"/>
+      <text class="lv-arrowlabel" x="362" y="64" text-anchor="middle">done</text>
+      <g class="lv-node" id="n-orch"><rect x="170" y="18" width="180" height="52" rx="6"/><text class="nt" x="260" y="41" text-anchor="middle">Orchestrator</text><text class="ns" x="260" y="57" text-anchor="middle">plans next step · opus</text></g>
+      <g class="lv-node" id="n-worker"><rect x="25" y="150" width="160" height="52" rx="6"/><text class="nt" x="105" y="173" text-anchor="middle">Worker</text><text class="ns" x="105" y="189" text-anchor="middle">executes · sonnet</text></g>
+      <g class="lv-node" id="n-judge"><rect x="335" y="150" width="160" height="52" rx="6"/><text class="nt" x="415" y="173" text-anchor="middle">Judge</text><text class="ns" x="415" y="189" text-anchor="middle">eval gate · opus</text></g>
+      <g class="lv-node done" id="n-done"><rect x="376" y="18" width="128" height="40" rx="6"/><text class="nt" x="440" y="42" text-anchor="middle" style="font-size:11px">hands back ✓</text></g>
+      <circle r="5" class="lv-packet" id="lv-packet"/>
+    </svg>
+    <div class="lv-status" id="lv-status"></div>
+  </div>`;
+}
+
+// ---- pipeline diagram (HTML) · used for fixed stages AND agentic steps ----
+function pipeHTML(stages) {
+  if (!stages.length) return `<div class="pipe"><div class="pstage active"><div class="pring"></div><div class="pname">planning…</div><div class="pstat">the agent is choosing its first step</div></div></div>`;
+  const cells = [];
+  stages.forEach((s, i) => {
+    cells.push(`<div class="pstage" id="ps-${i}"><div class="pring"><span class="ck">✓</span></div><div class="pname">${esc(s.name)}</div><div class="pstat" id="pstat-${i}">queued</div></div>`);
+    if (i < stages.length - 1) cells.push('<div class="parrow">→</div>');
+  });
+  cells.push('<div class="parrow">→</div><div class="phand" id="phand"><div class="hbox">✓ hand back</div></div>');
+  return `<div class="pipe">${cells.join("")}</div>`;
+}
+function updatePipe(p) {
+  (p.stages || []).forEach((s, i) => {
+    const node = $(`ps-${i}`), stat = $(`pstat-${i}`); if (!node) return;
+    const ok = !!s.cleared;
+    node.classList.toggle("done", !!s.done && ok);
+    node.classList.toggle("failed", !!s.done && !ok);
+    node.classList.toggle("active", !s.done && i === p.stageIndex && p.status === "running");
+    if (s.done) { const ck = node.querySelector(".ck"); if (ck) ck.textContent = ok ? "✓" : "✗"; }
+    if (stat) stat.textContent = s.done ? `${ok ? "✓" : "✗"} ${Number(s.best_score ?? 0).toFixed(2)}` : (i === p.stageIndex && p.status === "running" ? `round ${p.round} · ${p.phase}` : "queued");
+  });
+  const allCleared = (p.stages || []).length && p.stages.every(s => s.done && s.cleared);
+  $("phand") && $("phand").classList.toggle("done", !!allCleared);
+}
+
+// ---- live transcript: the agents' actual output ----
+function roundTs(n, r) {
+  const verdict = r.passed ? '<span class="pill good">passed</span>' : '<span class="pill bad">rejected</span>';
+  return `<div class="ts-round">
+    <div class="ts-agent worker"><div class="ts-who"><span class="bar"></span>Worker · round ${n}</div><div class="ts-text">${esc(r.draft)}</div></div>
+    <div class="ts-agent judge"><div class="ts-who"><span class="bar"></span>Judge · round ${n} ${verdict} <span class="sc">score ${Number(r.score).toFixed(2)}</span></div><div class="ts-crit">${esc(r.critique)}</div></div>
+  </div>`;
+}
+function liveTs(n, text, phase) {
+  const cur = phase === "drafting" ? '<span class="cursor">·</span>' : "";
+  const judging = phase === "judging" ? `<div class="ts-agent judge"><div class="ts-who"><span class="bar"></span>Judge · round ${n} &nbsp;<span class="spin-i"></span> scoring against the rubric…</div></div>` : "";
+  return `<div class="ts-round">
+    <div class="ts-agent worker"><div class="ts-who"><span class="bar"></span>Worker · round ${n} ${phase === "judging" ? "(draft complete)" : "(writing…)"}</div><div class="ts-text live">${esc(text)}${cur}</div></div>
+    ${judging}
+  </div>`;
+}
+function transcriptHTML(p) {
+  const out = [];
+  (p.stages || []).forEach((s, si) => {
+    if (p.mode !== "single") {
+      const mark = s.done ? "✓" : (si === p.stageIndex ? "▶" : "·");
+      out.push(`<div class="ts-stage"><span class="mk">${mark}</span> ${esc(s.name)}${s.thought ? `<span class="ts-thought"> — ${esc(s.thought)}</span>` : ""}</div>`);
+    }
+    s.rounds.forEach(r => out.push(roundTs(r.n, r)));
+    if (p.partial && p.partial.stageIndex === si && p.status === "running" && p.partial.text)
+      out.push(liveTs(p.partial.round, p.partial.text, p.phase));
+  });
+  if (!out.length) out.push('<div class="ts-empty"><span class="spin-i"></span> &nbsp;starting the loop in the enclave…</div>');
+  return out.join("");
+}
+function paintTranscript(p) {
+  const t = $("transcript"); if (!t) return;
+  const atBottom = t.scrollHeight - t.scrollTop - t.clientHeight < 80;
+  t.innerHTML = transcriptHTML(p);
+  if (p.status === "running" && atBottom) t.scrollTop = t.scrollHeight;
+}
+
+// ---- live follower ----
+async function follow(mode) {
+  const my = ++token;
+  const isAgentic = mode === "agentic";
+  const isPipe = mode === "stages"; // only the fixed pipeline uses the box-row
+  const diagram = isAgentic ? agenticDiagramHTML()
+    : isPipe ? `<div id="pipe-host">${pipeHTML([{ name: "Angle" }, { name: "Draft" }, { name: "Polish" }])}</div><div class="lv-status" id="lv-status"></div>`
+    : diagramHTML();
+  $("pane").innerHTML = explainHTML(mode) + diagram +
+    `<div class="meter" id="meter"></div>` +
+    `<div class="section-h"><h2>Live transcript · what each agent is producing</h2></div><div class="transcript" id="transcript"></div>`;
+  if (!isPipe) startPacket();
+  let seen = 0;
+  while (my === token) {
+    let p;
+    try { p = await (await fetch("/api/progress", { cache: "no-store" })).json(); }
+    catch (e) { await sleep(1300); continue; }
+
+    // ignore state left over from a different run still settling
+    if (p.mode && p.mode !== mode) { await sleep(700); continue; }
+
+    if (isAgentic) {
+      const st = $("lv-status"); const n = p.stageIndex + 1;
+      if (p.phase === "planning") { setNode("n-orch"); st && (st.innerHTML = `orchestrator planning step <b>${n}</b>…`); }
+      else if (p.phase === "judging") { setNode("n-judge"); st && (st.innerHTML = `judge scoring step <b>${n}</b>…`); }
+      else { setNode("n-worker"); st && (st.innerHTML = `worker executing step <b>${n}</b>…`); }
+    } else if (isPipe) {
+      const host = $("pipe-host");
+      if (host && p.stages.length && host.dataset.n !== String(p.stages.length)) { host.innerHTML = pipeHTML(p.stages); host.dataset.n = String(p.stages.length); }
+      updatePipe(p);
+      const st = $("lv-status");
+      if (st) st.innerHTML = p.stages.length ? `pipeline · stage <b>${p.stageIndex + 1}</b> · ${p.phase === "judging" ? "judge scoring…" : "worker drafting…"}` : "starting…";
+    } else {
+      const st = $("lv-status");
+      if (p.phase === "judging") { setNode("n-judge"); st && (st.innerHTML = `round <b>${p.round}</b> · judge scoring against the rubric…`); }
+      else if (p.phase === "drafting") { setNode("n-worker"); st && (st.innerHTML = `round <b>${p.round}</b> · worker drafting…`); }
+    }
+
+    // ring pulses on newly completed rounds (single diagram only)
+    const total = (p.stages || []).reduce((a, s) => a + s.rounds.length, 0);
+    if (!isPipe && total > seen) {
+      const flat = (p.stages || []).flatMap(s => s.rounds);
+      for (let k = seen; k < total; k++) { const r = flat[k]; r.passed ? (setNode("n-done"), ring(415, 173, "#4ade80")) : ring(415, 95, "#818cf8"); }
+    }
+    seen = total;
+
+    const m = $("meter");
+    if (m) m.innerHTML = meterHTML(p.cost_usd || 0, (p.limits && p.limits.maxUsd) || 1, toks(p.tokens));
+
+    paintTranscript(p);
+
+    if (p.status === "done" && p.result) {
+      const rmode = (p.result && p.result.mode) || "single";
+      if (rmode === mode) return renderDone(mode, p.result, p.signature, p.signed);
+      await sleep(700); continue; // mismatched stale result — wait for our run
+    }
+    if (p.status === "error") { stopPacket(); $("transcript").innerHTML = `<div class="ts-empty"><span class="no" style="color:var(--bad)">enclave error: ${esc(p.error || "failed")}</span></div>`; return; }
+    await sleep(1000);
+  }
+}
+
+// ---- idle / start ----
+function renderIdle(mode, busyMsg) {
+  ++token; stopPacket();
+  const label = mode === "stages" ? "▶ Start the pipeline" : mode === "agentic" ? "▶ Start the agent" : "▶ Start the loop";
+  const diagram = mode === "single" ? diagramHTML()
+    : mode === "agentic" ? agenticDiagramHTML()
+    : `${pipeHTML([{ name: "Angle" }, { name: "Draft" }, { name: "Polish" }])}<div class="lv-status" id="lv-status"></div>`;
+  $("pane").innerHTML = explainHTML(mode) + diagram +
+    `<div class="start-row"><button class="cta" id="start-btn">${label}</button><span class="note" id="start-note">${esc(busyMsg || "runs inside the TEE — nothing executes until you press start")}</span></div>`;
+  const gi = $("goal-input"), sn = $("start-note");
+  const reflect = () => { if (!sn) return; const g = (gi?.value || "").trim(); sn.innerHTML = g ? `▶ will run <b style="color:var(--indigo-2)">your goal</b> in <b>${mode === "agentic" ? "agentic" : mode === "stages" ? "fixed-pipeline" : "single-loop"}</b> mode` : (busyMsg ? esc(busyMsg) : "runs inside the TEE — nothing executes until you press start"); };
+  reflect(); if (gi) gi.oninput = reflect;
+  const ls = $("lv-status"); ls && (ls.textContent = "idle — press start");
+  $("start-btn").onclick = () => startRun(mode);
+}
+
+async function startRun(mode) {
+  const btn = $("start-btn"); if (btn) { btn.disabled = true; btn.textContent = "starting…"; }
+  const goal = (($("goal-input") || {}).value || "").trim();
+  try {
+    const r = await fetch(`/api/loop?mode=${mode}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(goal ? { goal } : {}),
+    });
+    if (r.status === 409) { renderIdle(mode, "a run is already in progress — try again in a moment"); return; }
+  } catch (e) {}
+  follow(mode);
+}
+
+// ---- done view ----
+function roundHTML(r, open) {
+  const cost = r.cost_usd != null ? ` · ${usd(r.cost_usd)}` : "";
+  return `<details class="round" ${open ? "open" : ""}><summary><span class="rn">round ${r.n}</span>${r.passed ? '<span class="pill good">passed</span>' : '<span class="pill bad">rejected</span>'}<span class="rs">score ${Number(r.score).toFixed(2)}${cost}</span></summary><div class="body"><div class="lbl">Judge critique</div><div class="crit">${esc(r.critique)}</div><div class="lbl">Draft</div><div class="draft">${esc(r.draft)}</div></div></details>`;
+}
+function renderDone(mode, result, signature, signed) {
+  ++token; stopPacket();
+  mode === "single" ? renderSingleDone(result) : renderStagesDone(result);
+  paintVerify(signed || JSON.stringify(result), signature); // verify the exact signed bytes
+}
+
+function renderSingleDone(d) {
+  $("pane").innerHTML = explainHTML("single") +
+    `<div id="verify-badge" class="verify-wrap"><span class="vbadge mut">verifying signature…</span></div>` + `
+    <div class="stats">
+      <div class="stat"><div class="k">Stopped because</div><div class="v">${stopBadge(d.stop_reason)}</div></div>
+      <div class="stat"><div class="k">Best score</div><div class="v mono">${Number(d.best_score).toFixed(2)}</div></div>
+      <div class="stat"><div class="k">Cost (est.)</div><div class="v mono">${usd(d.cost_usd)}</div></div>
+    </div>
+    <div class="meta-line">${d.rounds_run} rounds · ${toks(d.tokens)} tokens · stops at gate / no-progress / $ ceiling</div>
+    <div class="section-h"><h2>The frame · goal</h2></div><div class="goal">${esc(d.goal)}</div>
+    <div class="section-h"><h2>Final artifact · round ${d.best_round}</h2><button class="cta sm" id="again">Run again</button></div>
+    <div class="artifact">${esc(d.final_artifact)}</div>
+    <div class="section-h"><h2>Audit trail · ${d.rounds_run} round(s)</h2></div>
+    ${(d.trail || []).map(r => roundHTML(r, r.n === d.best_round)).join("")}`;
+  $("again").onclick = () => startRun("single");
+}
+
+function renderStagesDone(d) {
+  const agentic = d.mode === "agentic";
+  const stages = d.stages || d.steps || [];
+  const verdict = d.cleared_gate ? stopBadge(agentic ? "agent_done" : "completed")
+    : (d.stop_reason === "budget_exceeded" ? stopBadge("budget_exceeded") : stopBadge(agentic ? d.stop_reason : "incomplete"));
+  const unit = agentic ? "step" : "stage";
+  const askLabel = agentic ? "the plan · steps the agent chose for itself" : "the ask · what each stage was told to do";
+  // In agentic mode steps are attempts, not pass/fail gates — the best one becomes
+  // the answer. So we mark the chosen step "used" and the rest neutral "attempt".
+  const stepBadge = (s, i) => agentic
+    ? (i === d.best_step ? '<span class="pill good">✓ used · best draft</span>' : `<span class="pill mut">attempt · ${Number(s.best_score).toFixed(2)}</span>`)
+    : stopBadge(s.stop_reason);
+
+  $("pane").innerHTML = explainHTML(agentic ? "agentic" : "stages") +
+    `<div id="verify-badge" class="verify-wrap"><span class="vbadge mut">verifying signature…</span></div>` +
+    `<div id="pipe-host">${pipeHTML(stages.map(s => ({ name: s.name })))}</div>` + `
+    <div class="stats">
+      <div class="stat"><div class="k">${agentic ? "Agent" : "Pipeline"}</div><div class="v">${verdict}</div></div>
+      <div class="stat"><div class="k">${agentic ? "Steps" : "Stages"}</div><div class="v mono">${stages.length}</div></div>
+      <div class="stat"><div class="k">Cost (est.)</div><div class="v mono">${usd(d.cost_usd)}</div></div>
+    </div>
+    <div class="meta-line">${agentic ? `${stages.length} steps the agent planned` : `${d.total_rounds} rounds across ${stages.length} stages`} · ${toks(d.tokens)} tokens · shared $ ceiling</div>
+    <details class="ask" ${agentic ? "open" : ""}><summary>${askLabel}</summary><div class="ask-body">
+      ${stages.map((s, i) => `<p><b>${i + 1}. ${esc(s.name)}</b> — ${esc(s.goal || s.instruction)}${agentic && s.thought ? `<br><span style="color:var(--muted)">why: ${esc(s.thought)}</span>` : ""}</p>`).join("")}
+    </div></details>
+    <div class="section-h"><h2>Final artifact · after ${stages.length} ${unit}s</h2><button class="cta sm" id="again">Run again</button></div>
+    <div class="artifact">${esc(d.final_artifact)}</div>
+    <div class="section-h"><h2>Audit trail · ${stages.length} ${unit}s, ${d.total_rounds} rounds</h2></div>
+    ${stages.map((s, i) => `
+      <div class="stage-block">
+        <div class="stage-head"><span class="idx">${i + 1}</span><span class="sname">${esc(s.name)}</span>${stepBadge(s, i)}<span class="rs">${Number(s.best_score).toFixed(2)} · ${usd(s.cost_usd)} · ${s.rounds.length} round(s)</span></div>
+        ${s.rounds.map(r => roundHTML(r, r.n === s.best_round)).join("")}
+      </div>`).join("")}`;
+  stages.forEach((s, i) => {
+    const n = $(`ps-${i}`); if (!n) return;
+    if (agentic) {
+      // best step = chosen (green ✓), others = neutral attempts — no red ✗
+      const best = i === d.best_step;
+      n.classList.add(best ? "done" : "tried");
+      const ck = n.querySelector(".ck"); if (ck) ck.textContent = best ? "✓" : "·";
+      const st = $(`pstat-${i}`); if (st) st.textContent = best ? `used · ${Number(s.best_score).toFixed(2)}` : Number(s.best_score).toFixed(2);
+    } else {
+      const ok = !!s.cleared;
+      n.classList.add(ok ? "done" : "failed");
+      const ck = n.querySelector(".ck"); if (ck) ck.textContent = ok ? "✓" : "✗";
+      const st = $(`pstat-${i}`); if (st) st.textContent = `${ok ? "✓" : "✗"} ${Number(s.best_score).toFixed(2)}`;
+    }
+  });
+  $("phand") && $("phand").classList.toggle("done", !!d.cleared_gate);
+  $("again").onclick = () => startRun(agentic ? "agentic" : "stages");
+}
+
+// ---- tabs / boot ----
+function selectTab(mode) {
+  TAB = mode;
+  ["single", "stages", "agentic"].forEach(m => { const t = $("tab-" + m); if (t) t.classList.toggle("on", m === mode); });
+  syncTab(mode);
+}
+async function syncTab(mode) {
+  ++token; stopPacket();
+  $("pane").innerHTML = explainHTML(mode) + `<p class="skel" style="margin-top:8px"><span class="spin-i"></span> &nbsp;checking the enclave…</p>`;
+  let p;
+  try { p = await (await fetch("/api/progress", { cache: "no-store" })).json(); }
+  catch (e) { renderIdle(mode, "enclave unreachable — press start to retry"); return; }
+  if (p.status === "running" && p.mode === mode) return follow(mode);
+  const rmode = (p.result && p.result.mode) || "single";
+  if (p.status === "done" && p.result && rmode === mode) return renderDone(mode, p.result, p.signature, p.signed);
+  const busy = (p.status === "running" && p.mode !== mode) ? `a ${p.mode} run is in progress — start yours when it finishes` : "";
+  renderIdle(mode, busy);
+}
+
+selectTab("single");
+</script>
+</body>
+</html>

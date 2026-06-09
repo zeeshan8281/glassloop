@@ -1,0 +1,22 @@
+{
+  "name": "closed-loop-agent",
+  "version": "1.0.0",
+  "description": "A verifiable closed-loop agent: draft -> judge against rubric -> revise, run inside an EigenCompute TEE so the loop is attestable.",
+  "type": "module",
+  "main": "loop.ts",
+  "scripts": {
+    "start": "node --env-file-if-exists=/tmp/.env --env-file-if-exists=.env --import tsx server.ts",
+    "serve": "node --env-file-if-exists=/tmp/.env --env-file-if-exists=.env --import tsx server.ts",
+    "loop": "node --env-file-if-exists=.env --import tsx loop.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.71.0",
+    "openai": "^4.77.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "@types/node": "^22.10.0"
+  }
+}

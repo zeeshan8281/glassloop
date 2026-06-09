@@ -1,0 +1,9 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "env": {
+    "TEE_BACKEND": "http://34.70.216.22:8080"
+  },
+  "functions": {
+    "api/loop.js": { "maxDuration": 30 }
+  }
+}

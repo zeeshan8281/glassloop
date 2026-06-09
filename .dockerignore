@@ -1,0 +1,9 @@
+node_modules
+.npm-cache
+.env
+deploy.env
+Dockerfile.keep
+result.json
+.git
+HANDOFF.md
+README.md
